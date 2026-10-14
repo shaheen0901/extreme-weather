@@ -78,12 +78,14 @@ export default function App() {
   const [returnPeriods, setReturnPeriods] = useState(DEFAULT_RETURN_PERIODS)
   const [nBoot, setNBoot] = useState(500)
   const [seed, setSeed] = useState(42)
+  const [run, setRun] = useState(null) // inputs of the last "Run analysis" click
 
   function applyTable(name, table, sample) {
     const num = numericColumns(table)
     const daily = looksDaily(table)
     const pc = defaultValueColumn(num) ?? null
     setSource({ name, table, sample })
+    setRun(null) // new data: wait for Run analysis
     setLoadError(null)
     setValueCol(pc)
     setDataType(daily ? 'daily' : 'annual')
@@ -149,7 +151,21 @@ export default function App() {
     ? { min: Math.min(...x), max: Math.max(...x), mean: x.reduce((a, b) => a + b, 0) / n }
     : null
   const canFit = n >= MIN_YEARS_HARD && returnPeriods.length > 0 && !series?.error
-  const { result, progress, running, error } = useAnalysis(x, returnPeriods, nBoot, seed, canFit)
+  const currentKey = JSON.stringify([x, returnPeriods, nBoot, seed, units, varName])
+  const { result, progress, running, error } = useAnalysis(
+    run?.x, run?.returnPeriods, run?.nBoot, run?.seed, Boolean(run),
+  )
+  const outdated = Boolean(run) && run.key !== currentKey
+
+  function runAnalysis() {
+    setRun({ x, returnPeriods, nBoot, seed, units, varName, key: currentKey })
+  }
+
+  const runButton = (
+    <button type="button" className="btn run-btn" onClick={runAnalysis} disabled={!canFit || running}>
+      {running ? `Running… ${Math.round(progress * 100)}%` : 'Run analysis'}
+    </button>
+  )
 
   function toggleRP(T) {
     setReturnPeriods((rps) => (rps.includes(T) ? rps.filter((v) => v !== T) : [...rps, T].sort((a, b) => a - b)))
@@ -157,8 +173,8 @@ export default function App() {
 
   function downloadResults() {
     downloadCSV(
-      `return_levels_${fileSlug(varName)}.csv`,
-      ['Return period (yr)', `GEV (${units})`, 'GEV 2.5%', 'GEV 97.5%', `Gumbel (${units})`, 'Gumbel 2.5%', 'Gumbel 97.5%'],
+      `return_levels_${fileSlug(run.varName)}.csv`,
+      ['Return period (yr)', `GEV (${run.units})`, 'GEV 2.5%', 'GEV 97.5%', `Gumbel (${run.units})`, 'Gumbel 2.5%', 'Gumbel 97.5%'],
       result.rp.map((T, i) => [
         T, f2(result.gev.levels[i]), f2(result.gev.lo[i]), f2(result.gev.hi[i]),
         f2(result.gumbel.levels[i]), f2(result.gumbel.lo[i]), f2(result.gumbel.hi[i]),
@@ -332,6 +348,11 @@ export default function App() {
               <small>Fixing the seed makes results reproducible.</small>
             </label>
           </section>
+
+          <div className="run-box">
+            {runButton}
+            {!canFit && <small>Fix the data issue shown on the right to run the analysis.</small>}
+          </div>
         </aside>
 
         <div className="results">
@@ -384,21 +405,38 @@ export default function App() {
             </section>
           )}
 
-          {canFit && (running || (!result && !error)) && (
+          {!run && canFit && (
+            <section className="panel run-prompt">
+              <p>
+                Data ready: <strong>{n} years</strong> of annual maxima. Check the settings, then run the analysis to fit
+                GEV and Gumbel distributions and estimate return levels.
+              </p>
+              {runButton}
+            </section>
+          )}
+          {outdated && !running && (
+            <div className="notice outdated" role="status">
+              <span>The data or settings have changed since these results were calculated.</span>
+              <button type="button" className="btn small" onClick={runAnalysis} disabled={!canFit}>
+                Run analysis again
+              </button>
+            </div>
+          )}
+          {running && (
             <div className="progress" role="status">
               <span>Fitting distributions and bootstrapping… {Math.round(progress * 100)}%</span>
               <progress max={1} value={progress} />
             </div>
           )}
-          {canFit && error && <p className="error">The fit failed: {error}</p>}
+          {run && error && <p className="error">The fit failed: {error}</p>}
 
           {/* ---------------- Results ---------------- */}
-          {canFit && result && (
-            <div className={running ? 'stale' : undefined}>
+          {run && result && (
+            <div className={running || outdated ? 'stale' : undefined}>
               <section className="panel" aria-labelledby="rl-h">
-                <h2 id="rl-h">Return levels of annual maximum {varName.toLowerCase()}</h2>
+                <h2 id="rl-h">Return levels of annual maximum {run.varName.toLowerCase()}</h2>
                 <Suspense fallback={<p className="muted chart-wait">Loading chart…</p>}>
-                  <ReturnLevelChart result={result} units={units} variable={varName} />
+                  <ReturnLevelChart result={result} units={run.units} variable={run.varName} />
                 </Suspense>
               </section>
 
@@ -415,8 +453,8 @@ export default function App() {
                       <thead>
                         <tr>
                           <th rowSpan={2}>Return period (yr)</th>
-                          <th colSpan={2} className="gev">GEV ({units})</th>
-                          <th colSpan={2} className="gum">Gumbel ({units})</th>
+                          <th colSpan={2} className="gev">GEV ({run.units})</th>
+                          <th colSpan={2} className="gum">Gumbel ({run.units})</th>
                         </tr>
                         <tr>
                           <th className="gev">Level</th><th className="gev">95% CI</th>
@@ -438,7 +476,7 @@ export default function App() {
                   </div>
                   <p className="muted">
                     95% confidence intervals from {result.nBootOk} bootstrap samples.
-                    {result.nBootFailed > 0 && ` ${result.nBootFailed} of ${nBoot} bootstrap fits failed and were excluded.`}
+                    {result.nBootFailed > 0 && ` ${result.nBootFailed} of ${run.nBoot} bootstrap fits failed and were excluded.`}
                   </p>
                 </section>
 
@@ -467,7 +505,7 @@ export default function App() {
                 <div className="two-col">
                   <div>
                     <Suspense fallback={<p className="muted">Loading chart…</p>}>
-                      <QQChart qq={result.qq} units={units} />
+                      <QQChart qq={result.qq} units={run.units} />
                     </Suspense>
                     <p className="muted">Points close to the dashed 1:1 line indicate a good fit.</p>
                   </div>

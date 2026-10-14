@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Re-runs the analysis in a Web Worker whenever the inputs change (after a short pause),
+// Runs the analysis in a Web Worker when the inputs change (i.e. when Run analysis is clicked),
 // cancelling any run that is still going.
 export function useAnalysis(x, returnPeriods, nBoot, seed, enabled) {
   const [state, setState] = useState({ result: null, progress: 0, running: false, error: null })
@@ -27,7 +27,7 @@ export function useAnalysis(x, returnPeriods, nBoot, seed, enabled) {
         }
       }
       worker.postMessage({ id: 1, x: xs, returnPeriods: rps, nBoot: nb, seed: sd })
-    }, 250)
+    }, 0)
     return () => {
       cancelled = true
       clearTimeout(timer)

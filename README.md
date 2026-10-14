@@ -21,6 +21,7 @@ Then open http://localhost:5173/
 
 ## Features
 
+- Click **Run analysis** to fit; if the data or settings change afterwards, the results fade and a note asks you to run again
 - Upload a CSV, or use the New Orleans sample (`public/data/NOLA_Precip.csv`)
 - Annual maximum series, or daily / sub-annual data with a date column (annual maxima computed by calendar year)
 - Files with or without a header row (a header-less file keeps its first value as data)
