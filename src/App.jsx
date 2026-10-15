@@ -580,8 +580,7 @@ export default function App() {
         </p>
         <p>
           All calculations run in your browser; uploaded files are not sent anywhere. Fitted values match{' '}
-          <code>scipy.stats</code> (<code>genextreme</code>, <code>gumbel_r</code>). Code:{' '}
-          <a href="https://github.com/shaheen0901/extreme-weather">GitHub repository</a>.
+          <code>scipy.stats</code> (<code>genextreme</code>, <code>gumbel_r</code>).
         </p>
       </AboutPanel>
 
